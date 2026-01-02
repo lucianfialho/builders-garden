@@ -36,12 +36,17 @@ export async function validateApiKey(apiKey: string): Promise<{
       apiVersion: '2024-12-18.acacia',
     });
 
-    // Tenta buscar informações da conta para validar
-    const account = await stripe.account.retrieve();
+    // Valida tentando listar charges (que é o que vamos usar de verdade)
+    // Isso funciona com rak_charge_read permission
+    const charges = await stripe.charges.list({ limit: 1 });
+
+    // Se conseguiu listar, a key é válida
+    // Extrai o account ID do header da resposta (se disponível)
+    const accountId = charges.data[0]?.on_behalf_of || undefined;
 
     return {
       valid: true,
-      accountId: account.id,
+      accountId,
     };
   } catch (error: any) {
     console.error('Error validating Stripe API key:', error);
@@ -57,6 +62,13 @@ export async function validateApiKey(apiKey: string): Promise<{
       return {
         valid: false,
         error: 'API key inválida. Verifique se copiou corretamente.',
+      };
+    }
+
+    if (error.statusCode === 403) {
+      return {
+        valid: false,
+        error: 'API key não tem as permissões corretas. Certifique-se de criar com "Charges (read)".',
       };
     }
 
