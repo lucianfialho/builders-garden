@@ -194,15 +194,39 @@ export async function listAnalyticsProperties(userId: string) {
 
     const analyticsAdmin = google.analyticsadmin('v1beta');
 
-    const response = await analyticsAdmin.properties.list({
+    // Primeiro, lista todas as contas
+    const accountsResponse = await analyticsAdmin.accounts.list({
       auth: oauth2Client,
-      filter: 'parent:accounts/*',
     });
 
-    return (response.data.properties || []).map(property => ({
+    const accounts = accountsResponse.data.accounts || [];
+
+    if (accounts.length === 0) {
+      return [];
+    }
+
+    // Para cada conta, lista as properties
+    const allProperties = [];
+
+    for (const account of accounts) {
+      try {
+        const propertiesResponse = await analyticsAdmin.properties.list({
+          auth: oauth2Client,
+          filter: `parent:${account.name}`,
+        });
+
+        const properties = propertiesResponse.data.properties || [];
+        allProperties.push(...properties);
+      } catch (error) {
+        console.error(`Error listing properties for account ${account.name}:`, error);
+        // Continua para próxima conta mesmo se uma falhar
+      }
+    }
+
+    return allProperties.map(property => ({
       id: property.name?.split('/')[1] || '',
       displayName: property.displayName || '',
-      websiteUrl: property.industryCategory || '',
+      websiteUrl: property.websiteUrl || '',
     }));
   } catch (error) {
     console.error('Error listing Analytics properties:', error);
