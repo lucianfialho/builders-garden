@@ -1,6 +1,14 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  turbopack: {
+    resolveAlias: {
+      // Phaser precisa rodar apenas no client-side
+      // Faz fallback de módulos Node.js que não existem no browser
+      fs: {},
+      path: {},
+    },
+  },
   webpack: (config, { isServer }) => {
     // Phaser precisa rodar apenas no client-side
     // Faz fallback de módulos Node.js que não existem no browser

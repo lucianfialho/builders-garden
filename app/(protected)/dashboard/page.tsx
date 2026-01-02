@@ -5,6 +5,7 @@ import { gardens, currency } from '@/lib/db/schema';
 import { eq } from 'drizzle-orm';
 import Card from '@/components/ui/Card';
 import Link from 'next/link';
+import DailyCheckIn from '@/components/dashboard/DailyCheckIn';
 
 export default async function DashboardPage() {
   const session = await getSession();
@@ -178,6 +179,11 @@ export default async function DashboardPage() {
               Gerenciar Integrações
             </Link>
           </Card>
+        </div>
+
+        {/* Daily Check-In */}
+        <div className="mt-8">
+          <DailyCheckIn />
         </div>
 
         {/* Info Box */}
