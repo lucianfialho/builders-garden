@@ -137,7 +137,7 @@ export default async function DashboardPage() {
                   </p>
                 </div>
               </div>
-              <div className="flex items-start gap-2">
+              <Link href="/settings/integrations" className="flex items-start gap-2 hover:bg-gray-50 dark:hover:bg-gray-800 -mx-2 px-2 py-1 rounded transition-colors">
                 <span className="text-gray-400">○</span>
                 <div>
                   <p className="text-sm font-medium text-gray-900 dark:text-gray-100">
@@ -147,8 +147,8 @@ export default async function DashboardPage() {
                     Vincule suas métricas para crescimento automático
                   </p>
                 </div>
-              </div>
-              <div className="flex items-start gap-2">
+              </Link>
+              <Link href="/settings/integrations" className="flex items-start gap-2 hover:bg-gray-50 dark:hover:bg-gray-800 -mx-2 px-2 py-1 rounded transition-colors">
                 <span className="text-gray-400">○</span>
                 <div>
                   <p className="text-sm font-medium text-gray-900 dark:text-gray-100">
@@ -158,7 +158,7 @@ export default async function DashboardPage() {
                     Acompanhe sua receita no jardim
                   </p>
                 </div>
-              </div>
+              </Link>
               <div className="flex items-start gap-2">
                 <span className="text-gray-400">○</span>
                 <div>
@@ -171,6 +171,12 @@ export default async function DashboardPage() {
                 </div>
               </div>
             </div>
+            <Link
+              href="/settings/integrations"
+              className="block w-full text-center px-4 py-2 mt-4 bg-gray-200 dark:bg-gray-700 text-gray-900 dark:text-gray-100 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors"
+            >
+              Gerenciar Integrações
+            </Link>
           </Card>
         </div>
 
