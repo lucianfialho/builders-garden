@@ -1,19 +1,19 @@
-import { SignJWT, jwtVerify } from 'jose';
+import { SignJWT, jwtVerify, type JWTPayload } from 'jose';
 import { cookies } from 'next/headers';
 import { NextRequest } from 'next/server';
 
 const secret = new TextEncoder().encode(process.env.NEON_AUTH_SECRET);
 const issuer = process.env.NEON_AUTH_ISSUER || 'http://localhost:3000';
 
-export interface SessionPayload {
+export interface SessionPayload extends JWTPayload {
   userId: string;
   email: string;
   username: string;
 }
 
 // Criar token JWT
-export async function createSession(payload: SessionPayload): Promise<string> {
-  const token = await new SignJWT(payload as any)
+export async function createSession(payload: Omit<SessionPayload, keyof JWTPayload>): Promise<string> {
+  const token = await new SignJWT(payload)
     .setProtectedHeader({ alg: 'HS256' })
     .setIssuedAt()
     .setIssuer(issuer)
@@ -29,7 +29,19 @@ export async function verifySession(token: string): Promise<SessionPayload | nul
     const verified = await jwtVerify(token, secret, {
       issuer,
     });
-    return verified.payload as SessionPayload;
+
+    const payload = verified.payload;
+
+    // Validar que o payload tem as propriedades necessárias
+    if (
+      typeof payload.userId === 'string' &&
+      typeof payload.email === 'string' &&
+      typeof payload.username === 'string'
+    ) {
+      return payload as SessionPayload;
+    }
+
+    return null;
   } catch (error) {
     return null;
   }
@@ -55,7 +67,7 @@ export async function getSessionFromRequest(request: NextRequest): Promise<Sessi
 }
 
 // Salvar sessão no cookie
-export async function saveSession(payload: SessionPayload): Promise<void> {
+export async function saveSession(payload: Omit<SessionPayload, keyof JWTPayload>): Promise<void> {
   const token = await createSession(payload);
   const cookieStore = await cookies();
 
