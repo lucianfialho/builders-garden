@@ -98,17 +98,30 @@ export async function GET(request: NextRequest) {
         const growthPointsEarned = calculateGrowthPoints(gaSessions, stripeRevenue);
         const seedsEarned = calculateSeedsEarned(gaSessions, stripeRevenue);
 
-        // Salva snapshot de métricas
-        await db.insert(metrics).values({
-          userId,
-          date: yesterday,
-          gaSessions,
-          gaUsers,
-          stripeRevenue,
-          stripePayments,
-          growthPointsEarned,
-          seedsEarned,
-        });
+        // Salva snapshot de métricas (ou atualiza se já existir)
+        await db
+          .insert(metrics)
+          .values({
+            userId,
+            date: yesterday,
+            gaSessions,
+            gaUsers,
+            stripeRevenue,
+            stripePayments,
+            growthPointsEarned,
+            seedsEarned,
+          })
+          .onConflictDoUpdate({
+            target: [metrics.userId, metrics.date],
+            set: {
+              gaSessions,
+              gaUsers,
+              stripeRevenue,
+              stripePayments,
+              growthPointsEarned,
+              seedsEarned,
+            },
+          });
 
         // Aplica crescimento ao jardim
         if (growthPointsEarned > 0) {
