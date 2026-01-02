@@ -4,46 +4,73 @@ import { integrations } from '@/lib/db/schema';
 import { eq, and } from 'drizzle-orm';
 
 /**
- * Gera URL de autorização OAuth para Stripe Connect
+ * Gera URL do Stripe Dashboard para criar API key com permissões pré-configuradas
  */
-export function getAuthorizationUrl(state: string): string {
+export function getCreateApiKeyUrl(): string {
   const params = new URLSearchParams({
-    response_type: 'code',
-    client_id: process.env.STRIPE_CLIENT_ID!,
-    scope: 'read_only',
-    redirect_uri: process.env.STRIPE_REDIRECT_URI!,
-    state,
+    name: "Builder's Garden",
+    'permissions[]': 'rak_charge_read',
   });
 
-  return `https://connect.stripe.com/oauth/authorize?${params.toString()}`;
+  return `https://dashboard.stripe.com/apikeys/create?${params.toString()}`;
 }
 
 /**
- * Troca o código de autorização por access token
+ * Valida se uma API key do Stripe é válida e tem as permissões corretas
  */
-export async function exchangeCodeForToken(code: string): Promise<{
-  accessToken: string;
-  stripeUserId: string;
+export async function validateApiKey(apiKey: string): Promise<{
+  valid: boolean;
+  accountId?: string;
+  error?: string;
 }> {
-  const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
-    apiVersion: '2024-12-18.acacia',
-  });
+  try {
+    // Verifica se começa com rk_ (restricted key)
+    if (!apiKey.startsWith('rk_')) {
+      return {
+        valid: false,
+        error: 'Apenas Restricted API Keys são permitidas. A key deve começar com "rk_"',
+      };
+    }
 
-  const response = await stripe.oauth.token({
-    grant_type: 'authorization_code',
-    code,
-  });
+    const stripe = new Stripe(apiKey, {
+      apiVersion: '2024-12-18.acacia',
+    });
 
-  return {
-    accessToken: response.access_token,
-    stripeUserId: response.stripe_user_id,
-  };
+    // Tenta buscar informações da conta para validar
+    const account = await stripe.account.retrieve();
+
+    return {
+      valid: true,
+      accountId: account.id,
+    };
+  } catch (error: any) {
+    console.error('Error validating Stripe API key:', error);
+
+    if (error.code === 'api_key_expired') {
+      return {
+        valid: false,
+        error: 'API key expirada. Crie uma nova no Stripe Dashboard.',
+      };
+    }
+
+    if (error.statusCode === 401) {
+      return {
+        valid: false,
+        error: 'API key inválida. Verifique se copiou corretamente.',
+      };
+    }
+
+    return {
+      valid: false,
+      error: 'Erro ao validar API key. Tente novamente.',
+    };
+  }
 }
 
 /**
- * Obtém access token do banco
+ * Obtém access token (API key) do banco
  */
-async function getAccessToken(userId: string): Promise<string> {
+async function getApiKey(userId: string): Promise<string> {
   const [integration] = await db
     .select()
     .from(integrations)
@@ -68,9 +95,9 @@ async function getAccessToken(userId: string): Promise<string> {
  */
 export async function fetchDailyRevenue(userId: string, date: Date): Promise<number> {
   try {
-    const accessToken = await getAccessToken(userId);
+    const apiKey = await getApiKey(userId);
 
-    const stripe = new Stripe(accessToken, {
+    const stripe = new Stripe(apiKey, {
       apiVersion: '2024-12-18.acacia',
     });
 
@@ -111,9 +138,9 @@ export async function fetchDailyRevenue(userId: string, date: Date): Promise<num
  */
 export async function fetchDailyPayments(userId: string, date: Date): Promise<number> {
   try {
-    const accessToken = await getAccessToken(userId);
+    const apiKey = await getApiKey(userId);
 
-    const stripe = new Stripe(accessToken, {
+    const stripe = new Stripe(apiKey, {
       apiVersion: '2024-12-18.acacia',
     });
 
@@ -143,39 +170,9 @@ export async function fetchDailyPayments(userId: string, date: Date): Promise<nu
 }
 
 /**
- * Desconecta a conta Stripe (revoga acesso)
+ * Desconecta a integração Stripe (marca como inativa)
  */
 export async function disconnectStripe(userId: string): Promise<void> {
-  const accessToken = await getAccessToken(userId);
-
-  const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
-    apiVersion: '2024-12-18.acacia',
-  });
-
-  // Busca o stripe_user_id do metadata
-  const [integration] = await db
-    .select()
-    .from(integrations)
-    .where(
-      and(
-        eq(integrations.userId, userId),
-        eq(integrations.provider, 'stripe'),
-        eq(integrations.isActive, true)
-      )
-    )
-    .limit(1);
-
-  if (integration?.metadata && typeof integration.metadata === 'object') {
-    const metadata = integration.metadata as { stripeUserId?: string };
-    if (metadata.stripeUserId) {
-      await stripe.oauth.deauthorize({
-        client_id: process.env.STRIPE_CLIENT_ID!,
-        stripe_user_id: metadata.stripeUserId,
-      });
-    }
-  }
-
-  // Marca como inativa no banco
   await db
     .update(integrations)
     .set({ isActive: false })

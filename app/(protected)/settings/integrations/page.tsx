@@ -26,6 +26,11 @@ export default function IntegrationsPage() {
   const [successMessage, setSuccessMessage] = useState('');
   const [errorMessage, setErrorMessage] = useState('');
 
+  // Stripe API Key state
+  const [stripeApiKey, setStripeApiKey] = useState('');
+  const [isConnectingStripe, setIsConnectingStripe] = useState(false);
+  const [stripeError, setStripeError] = useState('');
+
   useEffect(() => {
     // Mostra mensagens de sucesso/erro da URL
     const success = searchParams.get('success');
@@ -77,6 +82,43 @@ export default function IntegrationsPage() {
 
     loadStatus();
   }, []);
+
+  async function handleConnectStripe() {
+    if (!stripeApiKey.trim()) {
+      setStripeError('Por favor, cole sua API key do Stripe');
+      return;
+    }
+
+    setIsConnectingStripe(true);
+    setStripeError('');
+
+    try {
+      const response = await fetch('/api/integrations/stripe/connect', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ apiKey: stripeApiKey }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Erro ao conectar Stripe');
+      }
+
+      // Sucesso - recarrega status
+      setSuccessMessage('Stripe conectado com sucesso!');
+      setStripeApiKey('');
+
+      // Recarrega status
+      const statusResponse = await fetch('/api/integrations/status');
+      const statusData = await statusResponse.json();
+      setStatus(statusData);
+    } catch (err: any) {
+      setStripeError(err.message);
+    } finally {
+      setIsConnectingStripe(false);
+    }
+  }
 
   if (isLoading) {
     return (
@@ -194,39 +236,84 @@ export default function IntegrationsPage() {
           {/* Stripe Card */}
           <Card title="Stripe">
             <div className="space-y-4">
-              <div className="flex items-start justify-between">
-                <div className="flex-1">
-                  <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">
-                    Acompanhe sua receita e pagamentos para crescimento automático do jardim.
-                  </p>
+              <p className="text-sm text-gray-600 dark:text-gray-400">
+                Acompanhe sua receita e pagamentos para crescimento automático do jardim.
+              </p>
 
-                  {status?.stripe.connected ? (
-                    <div className="flex items-center gap-2">
-                      <span className="text-green-600 dark:text-green-400 font-semibold">
-                        ✓ Conectado
-                      </span>
-                    </div>
-                  ) : (
-                    <span className="text-gray-500 dark:text-gray-500">
-                      Não conectado
+              {status?.stripe.connected ? (
+                <div className="space-y-3">
+                  <div className="flex items-center gap-2">
+                    <span className="text-green-600 dark:text-green-400 font-semibold">
+                      ✓ Conectado
                     </span>
-                  )}
+                  </div>
+                  <p className="text-xs text-gray-500 dark:text-gray-500">
+                    Sua API key está ativa. O jardim está sincronizando sua receita automaticamente.
+                  </p>
                 </div>
+              ) : (
+                <div className="space-y-4">
+                  <div>
+                    <label htmlFor="stripeApiKey" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                      Restricted API Key
+                    </label>
+                    <input
+                      id="stripeApiKey"
+                      type="text"
+                      value={stripeApiKey}
+                      onChange={(e) => setStripeApiKey(e.target.value)}
+                      placeholder="rk_live_..."
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent dark:bg-gray-700 dark:text-gray-100 font-mono text-sm"
+                      disabled={isConnectingStripe}
+                    />
+                    <p className="text-xs text-gray-500 dark:text-gray-500 mt-1">
+                      Cole sua Restricted API Key do Stripe (começa com rk_)
+                    </p>
+                  </div>
 
-                <div>
-                  {status?.stripe.connected ? (
-                    <Button variant="secondary" disabled>
-                      Conectado
-                    </Button>
-                  ) : (
-                    <a href="/api/integrations/stripe/connect">
-                      <Button variant="primary">
-                        Conectar
+                  {stripeError && (
+                    <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-400 px-4 py-3 rounded-lg text-sm">
+                      {stripeError}
+                    </div>
+                  )}
+
+                  <div className="flex gap-3">
+                    <a
+                      href="https://dashboard.stripe.com/apikeys/create?name=Builder's%20Garden&permissions[]=rak_charge_read"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex-1"
+                    >
+                      <Button variant="secondary" className="w-full">
+                        Criar API Key no Stripe
                       </Button>
                     </a>
-                  )}
+                    <Button
+                      variant="primary"
+                      onClick={handleConnectStripe}
+                      isLoading={isConnectingStripe}
+                      className="flex-1"
+                    >
+                      Conectar
+                    </Button>
+                  </div>
+
+                  <div className="bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-4">
+                    <p className="text-xs font-semibold text-gray-700 dark:text-gray-300 mb-2">
+                      Como criar sua API Key:
+                    </p>
+                    <ol className="text-xs text-gray-600 dark:text-gray-400 space-y-1 list-decimal list-inside">
+                      <li>Clique em "Criar API Key no Stripe" acima</li>
+                      <li>No Stripe Dashboard, clique em "Create key"</li>
+                      <li>Copie a key que aparece (rk_live_...)</li>
+                      <li>Cole aqui e clique em "Conectar"</li>
+                    </ol>
+                    <p className="text-xs text-amber-600 dark:text-amber-400 mt-2">
+                      ⚠ Não apague a key do Stripe ou não conseguiremos atualizar sua receita
+                    </p>
+                  </div>
                 </div>
-              </div>
+              )}
 
               <div className="text-xs text-gray-500 dark:text-gray-500 pt-2 border-t border-gray-200 dark:border-gray-700">
                 <strong>Permissões:</strong> Somente leitura de dados de pagamentos (charges e revenue)
